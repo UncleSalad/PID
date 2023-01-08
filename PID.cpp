@@ -1,47 +1,26 @@
-#pragma once
+#include "PID.h"
 
-#include "Arduino.h"
-
-class PID
+PID::PID(float Kp, float Ki, float Kd, float dT)
 {
-    private:
-    // Minimum and maximum output range
-    float _min, _max;
+    kP = Kp;
+    kI = Ki;
+    kD = kD;
+    dt = dT;
+    _dt_s = dt / 1000;
+}
 
-    // Sample rate in seconds
-    float _dt_s;
+float PID::getResult()
+{
+    _error = setpoint - input;
+    _integral += _error * kI * _dt_s;
+    _derivative = (_error - _prevError) / _dt_s;
+    output = (_error * kP) + (_integral * kI) + (_derivative * kD);
+    _prevError = _error;
+    return constrain(output, _min, _max);
+}
 
-    // Integral component
-    float _integral;
-
-    // Derivative component
-    float _derivative;
-
-    // Regulation error
-    float _error, _prevError;
-
-    public:
-    // Constructor
-    PID(float Kp, float Ki, float Kd, float dT = 100);
-
-    // PID coefficients
-    float kP, kI, kD;
-
-    // Sample rate
-    float dt;
-
-    // Input
-    float input;
-
-    // Output
-    float output;
-
-    // Set point
-    float setpoint;
-
-    // Calculate
-    float getResult();
-
-    // Constrain output value
-    void setLimits(float min, float max);
-};
+void PID::setLimits(float min, float max)
+{
+    _min = min;
+    _max = max;
+}
