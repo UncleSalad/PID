@@ -1,32 +1,24 @@
-#include <Arduino.h>
+#include "Arduino.h"
 #include "PID.h"
+
+#define dt 10
+
+char key;
+float val;
+bool isOn = false;
+
+uint32_t tmr;
+
+PID pid(0, 0, 0, dt);
 
 // Inertial process
 #define LOW_VALUE 15    // к этому значению "остывает" система
-#define SIGNAL_COEF 0.1 // сила сигнала
+#define SIGNAL_COEF 1 // сила сигнала
 #define DELAY_AMOUNT 10 // задержка изменения
-#define dt 30
 float value = 15;
 float signal = 0;
 float COEF = 0.1;
-float setVal;
-uint32_t tmr = 0;
 
-// For parse
-float val;
-char key[2];
-
-// PID
-bool isOn = false;
-PID regul(0.0, 0.0, 0.0, dt, 0, 450);
-
-void setup()
-{
-    Serial.begin(115200);
-    Serial.setTimeout(50);
-}
-
-// Inertial process
 void process()
 {
     static float valueSpeed;
@@ -46,53 +38,54 @@ void process()
             delayArray[i] = valueSpeed;
     }
     for (int i = 0; i < DELAY_AMOUNT - 1; i++)
-        delayArray[i] = delayArray[i + 1];
+    delayArray[i] = delayArray[i + 1];
     delayArray[DELAY_AMOUNT - 1] = valueSpeed;
     // прибавляем скорость (интегрируем)
     value += /*valueSpeed*/ delayArray[0];
 }
+// Inertial process //
+
+void setup()
+{
+    Serial.begin(115200);
+    Serial.setTimeout(50);
+    pidr.setpoint = 75;
+    // pid.setLimits(0.0, 255.0);
+
+    // pinMode(3, OUTPUT);
+}
 
 void loop()
 {
-    // Every 30 ms (dt = 30 ms)
+    if (Serial.available() > 1)
+    {
+        key = Serial.read();
+        val = Serial.parseFloat();
+        switch(key)
+        {
+            case 'P': pid.kP = val; break;
+            case 'I': pid.kI = val; break;
+            case 'D': pid.kD = val; break;
+            case 'S': pid.setpoint = val; break;
+            case 'O': pid.output = val; break;
+            case 'M': isOn = (bool)val; break;
+        }
+        Serial.print("kP = ");Serial.print(pid.kP, 5);Serial.print(", kI = ");Serial.print(pid.kI, 5);Serial.print(", kD = ");Serial.print(pid.kD, 5);Serial.print(", Power: ");Serial.println((String)(isOn ? "On" : "Off"));
+    }
     if (millis() - tmr > dt)
     {
-        // 1. Parse
-        if (Serial.available() > 1)
-        {
-            Serial.readBytes(key, 2);
-            val = Serial.parseFloat();
-            switch (key[0])
-            {
-                case 'k':
-                switch (key[1])
-                {
-                    case 'P': regul.setP(val); break;
-                    case 'I': regul.setI(val); break;
-                    case 'D': regul.setD(val); break;
-                }
-                break;
+        // pid.input = map(analogRead(A0), 0, 1023, 0, 255);
+        // analogWrite(3, pid.getResult());
+        // analogWrite(3, pid.output);
 
-                case 'S':
-                switch (key[1])
-                {
-                    case 'T': isOn = (bool)val; break;
-                    case 'I': regul.setPoint(val); break;
-                }
-                break;
-            }
-            Serial.println("kP: " + (String)regul.getP() + ", kI: " + (String)regul.getI() + ", kD: " + (String)regul.getD() + ", SetVal: " + regul.getPoint() + ",PowerState: " + (String)((isOn) ? "On" : "Off"));
-        }
-        // 2. Process
-        // input = value
-        // output = signal
-        if (isOn) signal = regul.getResult(value);
-        process();
+        pid.input = value;
+        if (isOn) signal = pid.getResult();
 
-        // 3. Plot
-        Serial.println(">setpoint:" + (String)regul.getPoint());
-        Serial.println(">signal:" + (String)signal);
-        Serial.println(">value:" + (String)value);
+        Serial.print(">setpoint:");Serial.println(pid.setpoint);
+        Serial.print(">input:");Serial.println(pid.input);
+        Serial.print(">output:");Serial.println(pid.output);
+
         tmr = millis();
     }
+    process();
 }
